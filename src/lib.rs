@@ -1,9 +1,9 @@
 //!
 //!   The rgraph crate:
 //!
-//!   This library provides the mechanisms to define a directed acyclic graph of tasks. 
-//!   Once the graph is generated, a solver object can be instanciated to execute any of 
-//!   the tasks defined. In order to satisfy the input of such task, all the producer 
+//!   This library provides the mechanisms to define a directed acyclic graph of tasks.
+//!   Once the graph is generated, a solver object can be instanciated to execute any of
+//!   the tasks defined. In order to satisfy the input of such task, all the producer
 //!   tasks will be executed as well.
 //!
 
@@ -16,7 +16,7 @@ use std::any::Any;
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 /// helper trait that hides heterogenous tasks behind a common interface
-pub trait NodeRunner{
+pub trait NodeRunner {
     fn get_name(&self) -> &str;
     fn run(&self, solver: &mut GraphSolver) -> Result<(), SolverError>;
     fn get_ins(&self) -> &Vec<String>;
@@ -26,7 +26,7 @@ pub trait NodeRunner{
 /// Generic that stores the information required to execute arbitrary tasks
 /// Please use `create_node` macro to instaciate this objects
 pub struct Node<F>
-where F : Fn(&mut GraphSolver) -> Result<(), SolverError>
+    where F: Fn(&mut GraphSolver) -> Result<(), SolverError>
 {
     name: String,
     func: F,
@@ -35,10 +35,10 @@ where F : Fn(&mut GraphSolver) -> Result<(), SolverError>
 }
 
 impl<F> Node<F>
-where F : Fn(&mut GraphSolver) -> Result<(), SolverError>
+    where F: Fn(&mut GraphSolver) -> Result<(), SolverError>
 {
-    pub fn new(name: &str, func: F, ins: Vec<String>, outs: Vec<String>) -> Node<F>{
-        Node{
+    pub fn new(name: &str, func: F, ins: Vec<String>, outs: Vec<String>) -> Node<F> {
+        Node {
             name: name.into(),
             func: func,
             ins: ins,
@@ -48,18 +48,18 @@ where F : Fn(&mut GraphSolver) -> Result<(), SolverError>
 }
 
 impl<F> NodeRunner for Node<F>
-where F : Fn(&mut GraphSolver) -> Result<(), SolverError>
+    where F: Fn(&mut GraphSolver) -> Result<(), SolverError>
 {
-    fn get_name(&self) -> &str{
+    fn get_name(&self) -> &str {
         self.name.as_str()
     }
-    fn run(&self, solver: &mut GraphSolver) -> Result<(), SolverError>{
+    fn run(&self, solver: &mut GraphSolver) -> Result<(), SolverError> {
         (self.func)(solver)
     }
-    fn get_ins(&self) -> &Vec<String>{
+    fn get_ins(&self) -> &Vec<String> {
         &self.ins
     }
-    fn get_outs(&self) -> &Vec<String>{
+    fn get_outs(&self) -> &Vec<String> {
         &self.outs
     }
 }
@@ -68,42 +68,38 @@ where F : Fn(&mut GraphSolver) -> Result<(), SolverError>
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 /// The graph class itself.
-/// It holds the static information about the tasks (Nodes) and how they 
+/// It holds the static information about the tasks (Nodes) and how they
 /// depend on each other by waiting on resources (Assets)
-#[derive(Default)] 
-pub struct Graph{
+#[derive(Default)]
+pub struct Graph {
     nodes: Map<String, Box<NodeRunner>>,
     whatprovides: Map<String, String>,
 }
 
-impl Graph{
-
-    pub fn new() -> Graph{
-        Graph{
-            ..
-            Default::default()
-        }
+impl Graph {
+    pub fn new() -> Graph {
+        Graph { ..Default::default() }
     }
 
     pub fn add_node<F: 'static>(&mut self, node: Node<F>)
-        where F : Fn(&mut GraphSolver) -> Result<(), SolverError>
+        where F: Fn(&mut GraphSolver) -> Result<(), SolverError>
     {
         let newnode = Box::new(node);
-        let name : String = newnode.as_ref().get_name().into();
+        let name: String = newnode.as_ref().get_name().into();
 
-        for out in newnode.as_ref().get_outs(){
+        for out in newnode.as_ref().get_outs() {
             self.whatprovides.insert(out.clone(), name.clone());
         }
 
         self.nodes.insert(name, newnode);
     }
 
-    pub fn get_node(&self, name: &str) -> Option<&NodeRunner>{
-        let key : String = name.into();
+    pub fn get_node(&self, name: &str) -> Option<&NodeRunner> {
+        let key: String = name.into();
         self.nodes.get(&key).map(|res| res.as_ref())
     }
 
-    pub fn what_provides(&self, name: &str) -> Option<&String>{
+    pub fn what_provides(&self, name: &str) -> Option<&String> {
         self.whatprovides.get(name)
     }
 }
@@ -113,30 +109,29 @@ impl Graph{
 
 /// The graph solver is a transient object which can execute the tasks described in a graph.
 /// It is designed to be generated and droped on every execution.
-pub struct GraphSolver<'a>{
+pub struct GraphSolver<'a> {
     graph: &'a Graph,
-    cache: Map<String, Box<Any>>
+    cache: Map<String, Box<Any>>,
 }
 
 /// errors that may happen during a Solver instance execution
-#[derive(Debug)] 
-pub enum SolverError{
+#[derive(Debug)]
+pub enum SolverError {
     /// The asset was never declared during graph construction
     AssetNotDeclared(String),
     /// The asset was never instanciated during graph execution
-    AssetNotCreated(String), 
-    /// The asset trying to retrieve is of a different type. Users of this interface 
+    AssetNotCreated(String),
+    /// The asset trying to retrieve is of a different type. Users of this interface
     /// meant to know the name and type of each asset.
     AssetWrongType(String),
     /// No node was found with this name.
     NodeNotFound(String),
 }
 
-impl<'a> GraphSolver<'a>{
-
-    pub fn new(graph: &'a Graph) -> GraphSolver<'a>{
+impl<'a> GraphSolver<'a> {
+    pub fn new(graph: &'a Graph) -> GraphSolver<'a> {
         println!("new solver");
-        GraphSolver{
+        GraphSolver {
             graph: graph,
             cache: Map::new(),
         }
@@ -145,27 +140,26 @@ impl<'a> GraphSolver<'a>{
     /// Retrieves a value from the solver. It is required to know the
     /// name and type of the asset. Cast error will return SolveError::AssetWrongType
     pub fn get_value<T>(&self, name: &str) -> Result<T, SolverError>
-    where T: Debug + Clone + 'static
+        where T: Debug + Clone + 'static
     {
-        if let Some(ptr) = self.cache.get(name.into()){
-            if let Some(x) =  ptr.as_ref().downcast_ref::<T>(){
+        if let Some(ptr) = self.cache.get(name.into()) {
+            if let Some(x) = ptr.as_ref().downcast_ref::<T>() {
                 return Ok(x.clone());
-            }
-            else {
+            } else {
                 return Err(SolverError::AssetWrongType(name.into()));
             }
         }
         Err(SolverError::AssetNotCreated(name.into()))
     }
 
-    /// Saves a value to be available during execution. This routine 
-    /// can be used to feed initial values for Assets. i.e. free Assets not 
+    /// Saves a value to be available during execution. This routine
+    /// can be used to feed initial values for Assets. i.e. free Assets not
     /// generated by any Task.
     pub fn save_value<T>(&mut self, name: &str, value: T)
         where T: Debug + Clone + 'static
     {
         println!("    save value for {} {:?}", name, value);
-        let ptr : Box<Any> = Box::new(value);
+        let ptr: Box<Any> = Box::new(value);
         self.cache.insert(name.into(), ptr);
     }
 
@@ -177,31 +171,35 @@ impl<'a> GraphSolver<'a>{
         let mut to_run = Vec::new();
 
         let node = self.graph.get_node(name);
-        if node.is_none(){
+        if node.is_none() {
             return Err(SolverError::NodeNotFound(name.into()));
 
         }
-        queue.push( node.unwrap() );
+        queue.push(node.unwrap());
 
         while !queue.is_empty() {
             let node = queue.pop().unwrap();
 
-            for input in node.get_ins(){
-                match self.graph.what_provides(input){
-                    None => { return Err(SolverError::AssetNotDeclared(input.clone())); },
-                    Some(provider) => { 
-                        match self.graph.get_node(provider){ 
+            for input in node.get_ins() {
+                match self.graph.what_provides(input) {
+                    None => {
+                        return Err(SolverError::AssetNotDeclared(input.clone()));
+                    }
+                    Some(provider) => {
+                        match self.graph.get_node(provider) {
                             Some(n) => queue.push(n),
-                            None => { return Err(SolverError::NodeNotFound(provider.clone())); },
+                            None => {
+                                return Err(SolverError::NodeNotFound(provider.clone()));
+                            }
                         };
-                    },
+                    }
                 }
             }
 
             to_run.push(node);
         }
 
-        for node in to_run.iter().rev(){
+        for node in to_run.iter().rev() {
             node.run(self)?;
         }
 
@@ -218,16 +216,16 @@ impl<'a> GraphSolver<'a>{
 ///   a set of inputs,
 ///   a set of outputs, and
 ///   a set of statements which are the body of the task
-#[macro_export] 
+#[macro_export]
 macro_rules! create_node(
 
     // no inputs, with outputs
     ( name: $name:expr,
       in: ( ) ,
       out: ( $( $out:ident : $ot:ty ),+ )  $( $body:stmt )+  ) => {
-        Node::new($name, 
+        Node::new($name,
            | solver : &mut GraphSolver  |
-           { 
+           {
                 // exec body
                 $( let $out : $ot; )+
                 $( $body )+
@@ -238,8 +236,8 @@ macro_rules! create_node(
 
                 Ok(())
            },
-           vec!( ), 
-           vec!( $( stringify!($out).to_string() ),+ ), 
+           vec!( ),
+           vec!( $( stringify!($out).to_string() ),+ ),
         )
     };
 
@@ -247,9 +245,9 @@ macro_rules! create_node(
     ( name: $name:expr,
       in: ( $( $in:ident : $it:ty ),+ ) ,
       out: ( $( $out:ident : $ot:ty ),+ )  $( $body:stmt )+  ) => {
-        Node::new($name, 
+        Node::new($name,
            | solver : &mut GraphSolver  |
-           { 
+           {
                 // get inputs
                 $( let $in : $it = solver.get_value::<$it>(stringify!($in))?; )+
 
@@ -262,9 +260,9 @@ macro_rules! create_node(
                 $( solver.save_value(stringify!($out), $out); )+
 
                 Ok(())
-           }, 
-           vec!( $( stringify!($in).to_string() ),+ ), 
-           vec!( $( stringify!($out).to_string() ),+ ), 
+           },
+           vec!( $( stringify!($in).to_string() ),+ ),
+           vec!( $( stringify!($out).to_string() ),+ ),
        )
     };
 
@@ -272,9 +270,9 @@ macro_rules! create_node(
     ( name: $name:expr ,
       in: ( $( $in:ident : $it:ty ),+ ) ,
       out: ( )  $( $body:stmt )+  ) => {
-        Node::new($name, 
+        Node::new($name,
            | solver : &mut GraphSolver  |
-           { 
+           {
                 // get inputs
                 $( let $in : $it = solver.get_value(stringify!($in))?; )+
 
@@ -282,8 +280,8 @@ macro_rules! create_node(
                 $( $body )+
 
                 Ok(())
-           }, 
-           vec!( $( stringify!($in).to_string() ),+ ), 
+           },
+           vec!( $( stringify!($in).to_string() ),+ ),
            vec!()
        )
     };
@@ -302,16 +300,22 @@ mod tests {
 
         let mut g = Graph::new();
 
-        let node = Node::new("one", |_solver| { 
-            println!("stored and ran 1");
-            Ok(())
-        }, vec!(), vec!());
+        let node = Node::new("one",
+                             |_solver| {
+                                 println!("stored and ran 1");
+                                 Ok(())
+                             },
+                             vec![],
+                             vec![]);
         g.add_node(node);
 
-        let node = Node::new("two", |_solver|{ 
-            println!("stored and ran 2");
-            Ok(())
-        }, vec!(), vec!());
+        let node = Node::new("two",
+                             |_solver| {
+                                 println!("stored and ran 2");
+                                 Ok(())
+                             },
+                             vec![],
+                             vec![]);
         g.add_node(node);
 
         let mut solver = GraphSolver::new(&g);
@@ -328,9 +332,9 @@ mod tests {
         let g = Graph::new();
         let mut solver = GraphSolver::new(&g);
 
-        let node = create_node!( 
+        let node = create_node!(
             name: "test",
-            in: (i : u32), 
+            in: (i : u32),
             out: (x: u32) {
                 x = i +1;
             }
@@ -338,7 +342,7 @@ mod tests {
 
         solver.save_value("i", 1u32);
         assert!(node.run(&mut solver).is_ok());
-        let res : u32 = solver.get_value("x").unwrap();
+        let res: u32 = solver.get_value("x").unwrap();
         assert!(res == 2);
     }
 
@@ -347,9 +351,9 @@ mod tests {
         let g = Graph::new();
         let mut solver = GraphSolver::new(&g);
 
-        let node = create_node!( 
+        let node = create_node!(
             name: "test",
-            in: (i : u32), 
+            in: (i : u32),
             out: (x: u32) {
                 x = i +1;
             }
@@ -362,14 +366,14 @@ mod tests {
     fn construct_nodes() {
 
         let mut g = Graph::new();
-        g.add_node( create_node!(name: "no output",
+        g.add_node(create_node!(name: "no output",
                                  in: ( i : u32, j : u32),
                                  out: ()
                                  {
                                      println!("{} {}", i, j);
                                  }));
 
-        g.add_node( create_node!(name: "no input",
+        g.add_node(create_node!(name: "no input",
                                  in: ( ),
                                  out: ( x : f32, y : f64)
                                  {
@@ -377,12 +381,12 @@ mod tests {
                                      y = 4.0;
                                  }));
 
-        g.add_node( create_node!(name: "both input and output",
+        g.add_node(create_node!(name: "both input and output",
                                  in: ( i : u32, j : u32),
                                  out: ( x : f32, y : f64)
                                  {
-                                     x = i as f32; 
-                                     y = j as f64; 
+                                     x = i as f32;
+                                     y = j as f64;
                                  }));
 
     }
@@ -393,14 +397,14 @@ mod tests {
         let g = Graph::new();
         let mut s = GraphSolver::new(&g);
 
-        let a : i32 = 1;
-        s.save_value("a",a);
+        let a: i32 = 1;
+        s.save_value("a", a);
 
         assert!(s.get_value::<i32>("a").is_ok());
         assert!(s.get_value::<u32>("a").is_err());
         assert!(s.get_value::<u32>("j").is_err());
 
-        println!(" hey" );
+        println!(" hey");
     }
 
     #[test]
@@ -408,27 +412,27 @@ mod tests {
 
         let mut g = Graph::new();
 
-        g.add_node( create_node!(
+        g.add_node(create_node!(
                 name: "gen one",
-                in: (), 
+                in: (),
                 out: (one: u32) {
                     println!("gen one");
                     one = 1u32;
                 }
             ));
 
-        g.add_node( create_node!(
+        g.add_node(create_node!(
                 name: "plus one",
-                in: (one: u32), 
+                in: (one: u32),
                 out: (plusone : u32) {
                     println!("plusone");
                     plusone = one + 1u32;
                 }
             ));
 
-        g.add_node( create_node!(
+        g.add_node(create_node!(
                 name: "the one task",
-                in: (one: u32, plusone : u32), 
+                in: (one: u32, plusone : u32),
                 out: (last_value: f32) {
                     println!("the one task");
                     last_value = (one + plusone) as f32;
