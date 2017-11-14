@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/LuisAyuso/rgraph.svg?branch=master)](https://travis-ci.org/LuisAyuso/rgraph)
 # rgraph
 A task graph, runs tasks defined by dependencies. 
 
