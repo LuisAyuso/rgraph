@@ -174,6 +174,7 @@ pub enum SolverError {
 #[derive(Debug)]
 pub enum SolverStatus {
     Skiped,
+    Cached,
     Executed,
 }
 
@@ -182,7 +183,6 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
     /// creates a solver for graph 'graph', using cache from a previous solve. 
     /// the cache may be empty.
     pub fn new(graph: &'a Graph, last_cache: &'b mut Cache) -> GraphSolver<'a, 'b> {
-        println!("new solver");
         GraphSolver {
             graph: graph,
             cache: Map::new(),
@@ -228,8 +228,8 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
         }
 
         for node in to_run.iter().rev() {
-            let r = node.run(self)?;
-            println!("task: {} -> {:?}", node.get_name(), r);
+            let _r = node.run(self)?;
+            //println!("task: {} -> {:?}", node.get_name(), _r);
         }
 
         Ok(SolverStatus::Executed)
@@ -243,16 +243,15 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
     pub fn input_is_new<T> (&self, new_value: &T, name: &str) -> bool
         where T : Clone + std::cmp::PartialEq + 'static
     {
-        println!("find? {}", name);
 
         // retrieve from last cache cache
         match self.last_cache.get_value::<T>(name){
             Ok(old_value) => {
-                println!("values differ? {}", new_value != &old_value);
+                //println!("values differ? {}", new_value != &old_value);
                 new_value != &old_value
             },
-            Err(x) =>{
-                println!("value not found in cache? {} {:?}", name, x);
+            Err(_x) =>{
+                //println!("value not found in cache? {} {:?}", name, _x);
                 true
             }
         }
@@ -323,9 +322,21 @@ macro_rules! create_node(
         Node::new($name,
            | solver : &mut GraphSolver  |
            {
+                let outs = vec!( $( stringify!($out) ),+ );
+
+                let ready = vec! ( $( solver.get_value::<$ot>(stringify!($out)).is_ok() ),+ );
+                if ready.iter().fold(true, |acum, b| acum && *b) {
+                    return Ok(SolverStatus::Cached)
+                }
+
+                if solver.use_old_ouput(&outs){
+                    return Ok(SolverStatus::Skiped)
+                }
+
                 // exec body
                 $( let $out : $ot; )+
                 $( $body )+
+
 
                 // save outputs
                 $( let $out : $ot = $out; )+

@@ -28,7 +28,7 @@ fn main(){
                 name: "the one task",
                 in: (one: u32, plusone : u32),
                 out: (last_value: f32) {
-                    println!("               the one task");
+                    println!("              the one task");
                     last_value = (one + plusone) as f32;
                 }
             ));
@@ -36,9 +36,6 @@ fn main(){
         let mut cache = Cache::new();
 
         for _ in 0..10 {
-
-            println!("");
-            println!("");
 
             {
                 let mut solver = GraphSolver::new(&g, &mut cache);
