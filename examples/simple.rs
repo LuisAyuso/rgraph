@@ -10,7 +10,7 @@ fn main(){
                 name: "gen one",
                 in: (),
                 out: (one: u32) {
-                    println!("gen one");
+                    println!("              gen one");
                     one = 1u32;
                 }
             ));
@@ -19,7 +19,7 @@ fn main(){
                 name: "plus one",
                 in: (one: u32),
                 out: (plusone : u32) {
-                    println!("plusone");
+                    println!("              plusone");
                     plusone = one + 1u32;
                 }
             ));
@@ -28,17 +28,31 @@ fn main(){
                 name: "the one task",
                 in: (one: u32, plusone : u32),
                 out: (last_value: f32) {
-                    println!("the one task");
+                    println!("               the one task");
                     last_value = (one + plusone) as f32;
                 }
             ));
 
+        let mut cache = Cache::new();
+
         for _ in 0..10 {
 
-            let mut solver = GraphSolver::new(&g);
-            assert!(solver.execute("nop").is_err());
-            assert!(solver.execute("the one task").is_ok());
-            assert!(solver.get_value::<f32>("last_value").is_ok());
+            println!("");
+            println!("");
+
+            {
+                let mut solver = GraphSolver::new(&g, &mut cache);
+                assert!(solver.execute("nop").is_err());
+                assert!(solver.execute("the one task").is_ok());
+                
+                assert!(solver.get_value::<u32>("one").unwrap() == 1);
+                assert!(solver.get_value::<u32>("plusone").unwrap() == 2);
+                assert!(solver.get_value::<f32>("last_value").unwrap() == 3.0);
+            }
+
+            assert!(cache.get_value::<u32>("one").unwrap() == 1);
+            assert!(cache.get_value::<u32>("plusone").unwrap() == 2);
+            assert!(cache.get_value::<f32>("last_value").unwrap() == 3.0);
 
         }
 }
