@@ -73,6 +73,7 @@ impl<F> NodeRunner for Node<F>
 #[derive(Default)]
 pub struct Graph {
     nodes: Map<String, Rc<NodeRunner>>,
+    sinks: Vec<Rc<NodeRunner>>,
     whatprovides: Map<String, String>,
 }
 
@@ -90,6 +91,9 @@ impl Graph {
         for out in newnode.as_ref().get_outs() {
             self.whatprovides.insert(out.clone(), name.clone());
         }
+        if newnode.as_ref().get_outs().is_empty(){
+            self.sinks.push(newnode.clone());
+        }
 
         self.nodes.insert(name, newnode);
     }
@@ -97,6 +101,11 @@ impl Graph {
     pub fn get_node(&self, name: &str) -> Option<&NodeRunner> {
         let key: String = name.into();
         self.nodes.get(&key).map(|res| res.as_ref())
+    }
+
+    pub fn get_sinks(&self) -> &[Rc<NodeRunner>]
+    {
+        self.sinks.as_slice()
     }
 
     pub fn what_provides(&self, name: &str) -> Option<&String> {
@@ -195,15 +204,27 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
     /// are transitively executed
     pub fn execute(&mut self, name: &str) -> Result<SolverStatus, SolverError> {
 
-        let mut queue = Vec::new();
-        let mut to_run = Vec::new();
-
         let node = self.graph.get_node(name);
         if node.is_none() {
             return Err(SolverError::NodeNotFound(name.into()));
 
         }
-        queue.push(node.unwrap());
+        self.execute_all(&[node.unwrap()])
+    }
+
+    pub fn execute_sinks(&mut self) -> Result<SolverStatus, SolverError> {
+        let tmp : Vec<&NodeRunner> = self.graph.get_sinks().iter().map(|x| x.as_ref() ).collect();
+        self.execute_all(tmp.as_slice())
+    }
+
+    fn execute_all(&mut self, nodes: &[&NodeRunner]) -> Result<SolverStatus, SolverError> {
+
+        let mut queue = Vec::new();
+        let mut to_run = Vec::new();
+
+        for n in nodes{
+            queue.push(*n);
+        }
 
         while !queue.is_empty() {
             let node = queue.pop().unwrap();
@@ -352,7 +373,7 @@ macro_rules! create_node(
     // with inputs, with outputs
     ( name: $name:expr,
       in: ( $( $in:ident : $it:ty ),+ ) ,
-      out: ( $( $out:ident : $ot:ty ),+ )  $( $body:stmt )+  ) => {
+      out: ( $( $out:ident : $ot:ty ),* )  $( $body:stmt )+  ) => {
         Node::new($name,
            | solver : &mut GraphSolver  |
            {
@@ -360,50 +381,50 @@ macro_rules! create_node(
                 $( let $in : $it = solver.get_value::<$it>(stringify!($in))?; )+
                 let eq = vec!( $( solver.input_is_new(&$in, stringify!($in)) ),+ );
                 if !eq.iter().fold(true, |acum, b| acum && *b) {
-                    let outs = vec!( $( stringify!($out) ),+ );
+                    let outs = vec!( $( stringify!($out) ),* );
                     if solver.use_old_ouput(&outs){
                         return Ok(SolverStatus::Skiped)
                     }
                 }
 
                 // exec body
-                $( let $out : $ot; )+
+                $( let $out : $ot; )*
                 $( $body )+
 
                 // save outputs
-                $( let $out : $ot = $out; )+
-                $( solver.save_value(stringify!($out), $out); )+
+                $( let $out : $ot = $out; )*
+                $( solver.save_value(stringify!($out), $out); )*
 
                 Ok(SolverStatus::Executed)
            },
            vec!( $( stringify!($in).to_string() ),+ ),
-           vec!( $( stringify!($out).to_string() ),+ ),
+           vec!( $( stringify!($out).to_string() ),* ),
        )
     };
 
-    // with inputs, no outputs
-    ( name: $name:expr ,
-      in: ( $( $in:ident : $it:ty ),+ ) ,
-      out: ( )  $( $body:stmt )+  ) => {
-        Node::new($name,
-           | solver : &mut GraphSolver  |
-           {
-                // get inputs
-                $( let $in : $it = solver.get_value(stringify!($in))?; )+
-                let eq = vec!( $( solver.input_is_new(&$in, stringify!($in)) ),+ );
-                if !eq.iter().fold(true, |acum, b| acum && *b) {
-                    return Ok(SolverStatus::Skiped)
-                }
-
-                // exec body
-                $( $body )+
-
-                Ok(SolverStatus::Executed)
-           },
-           vec!( $( stringify!($in).to_string() ),+ ),
-           vec!()
-       )
-    };
+//    // with inputs, no outputs
+//    ( name: $name:expr ,
+//      in: ( $( $in:ident : $it:ty ),+ ) ,
+//      out: ( )  $( $body:stmt )+  ) => {
+//        Node::new($name,
+//           | solver : &mut GraphSolver  |
+//           {
+//                // get inputs
+//                $( let $in : $it = solver.get_value(stringify!($in))?; )+
+//                let eq = vec!( $( solver.input_is_new(&$in, stringify!($in)) ),+ );
+//                if !eq.iter().fold(true, |acum, b| acum && *b) {
+//                    return Ok(SolverStatus::Skiped)
+//                }
+//
+//                // exec body
+//                $( $body )+
+//
+//                Ok(SolverStatus::Executed)
+//           },
+//           vec!( $( stringify!($in).to_string() ),+ ),
+//           vec!()
+//       )
+//    };
 
 );
 
@@ -572,5 +593,39 @@ mod tests {
         }
 
         assert!(cache.get_value::<f32>("last_value").expect("must be f32") == 3f32);
+    }
+
+    #[test]
+    fn sinks(){
+
+        let mut g = Graph::new();
+        g.add_node(create_node!(name: "sink 1",
+                                 in: ( i : u32),
+                                 out: ()
+                                 {
+                                     println!("sink 1 {}", i);
+                                 }));
+
+        g.add_node(create_node!(name: "sink 2",
+                                 in: ( i : u32),
+                                 out: ()
+                                 {
+                                     println!("sink 2 {}", i);
+                                 }));
+
+        g.add_node(create_node!(name: "no input",
+                                 in: ( ),
+                                 out: ( i : u32)
+                                 {
+                                     i =  1234;
+                                     println!("produce {}", i);
+                                 }));
+
+        let mut cache = Cache::new();
+        {
+            let mut solver = GraphSolver::new(&g, &mut cache);
+            solver.execute_sinks().expect("this should run");
+        }
+        assert!(cache.get_value::<u32>("i").expect("must be f32") == 1234);
     }
 }
