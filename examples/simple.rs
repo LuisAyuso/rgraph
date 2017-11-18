@@ -1,6 +1,7 @@
 extern crate rgraph;
 
 use rgraph::*;
+use std::vec::Vec;
 
 fn main(){
 
@@ -30,6 +31,14 @@ fn main(){
                 out: (last_value: f32) {
                     println!("              the one task");
                     last_value = (one + plusone) as f32;
+                }
+            ));
+
+        g.add_node(create_node!(
+                name: "list",
+                in: (list : Vec<u32>),
+                out: () {
+                    println!("             list");
                 }
             ));
 

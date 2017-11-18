@@ -157,6 +157,25 @@ impl CacheImpl for Cache{
     }
 }
 
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+/// this trait allows us to overload behaviour for custom types
+/// in this manner comparison can be optimized or bypased for
+/// custom types
+pub trait Comparable {
+    fn ne(&self, other: &Self) -> bool;
+}
+
+impl<T> Comparable for T
+where T : std::cmp::PartialEq{
+    fn ne(&self, other: &Self) -> bool{
+        self != other
+    }
+}
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 /// The graph solver is a transient object which can execute the tasks described in a graph.
 /// It is designed to be generated and droped on every execution.
@@ -198,7 +217,6 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
             last_cache: last_cache,
         }
     }
-
 
     /// Executes a task by name, all tasks needed to provide Assets
     /// are transitively executed
@@ -262,14 +280,14 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
     /// output is available. the output will be considered valid and the computation
     /// skiped
     pub fn input_is_new<T> (&self, new_value: &T, name: &str) -> bool
-        where T : Clone + std::cmp::PartialEq + 'static
+        where T : Clone + Comparable + 'static
     {
 
         // retrieve from last cache cache
         match self.last_cache.get_value::<T>(name){
             Ok(old_value) => {
                 //println!("values differ? {}", new_value != &old_value);
-                new_value != &old_value
+                new_value.ne(&old_value)
             },
             Err(_x) =>{
                 //println!("value not found in cache? {} {:?}", name, _x);
