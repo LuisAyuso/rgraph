@@ -11,6 +11,8 @@ use std::collections::BTreeMap as Map;
 use std::vec::Vec;
 use std::any::Any;
 use std::rc::Rc;
+use std::mem;
+use std::cmp;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -168,7 +170,7 @@ pub trait Comparable {
 }
 
 impl<T> Comparable for T
-where T : std::cmp::PartialEq{
+where T : cmp::PartialEq{
     fn ne(&self, other: &Self) -> bool{
         self != other
     }
@@ -201,7 +203,6 @@ pub enum SolverError {
 
 #[derive(Debug)]
 pub enum SolverStatus {
-    Skiped,
     Cached,
     Executed,
 }
@@ -250,7 +251,9 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
             for input in node.get_ins() {
                 match self.graph.what_provides(input) {
                     None => {
-                        return Err(SolverError::AssetNotDeclared(input.clone()));
+                        if !self.cache.contains_key(input) {
+                            return Err(SolverError::AssetNotDeclared(input.clone()));
+                        }
                     }
                     Some(provider) => {
                         match self.graph.get_node(provider) {
@@ -282,11 +285,10 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
     pub fn input_is_new<T> (&self, new_value: &T, name: &str) -> bool
         where T : Clone + Comparable + 'static
     {
-
         // retrieve from last cache cache
         match self.last_cache.get_value::<T>(name){
             Ok(old_value) => {
-                //println!("values differ? {}", new_value != &old_value);
+                //println!("values for {} differ? {}", name, new_value.ne(&old_value));
                 new_value.ne(&old_value)
             },
             Err(_x) =>{
@@ -294,8 +296,6 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
                 true
             }
         }
-        
-        // check if values agree
     }
     pub fn use_old_ouput (&mut self, ouputs: &Vec<&str>) -> bool{
 
@@ -337,7 +337,7 @@ impl<'a, 'b> CacheImpl for GraphSolver<'a, 'b> {
 
 impl<'a, 'b> Drop for GraphSolver<'a, 'b> {
     fn drop(&mut self){
-        std::mem::swap(&mut self.cache, &mut self.last_cache);
+        mem::swap(&mut self.cache, &mut self.last_cache);
     }
 }
 
@@ -354,54 +354,21 @@ impl<'a, 'b> Drop for GraphSolver<'a, 'b> {
 #[macro_export]
 macro_rules! create_node(
 
-    // no inputs, with outputs
-    ( name: $name:expr,
-      in: ( ) ,
-      out: ( $( $out:ident : $ot:ty ),+ )  $( $body:stmt )+  ) => {
-        Node::new($name,
-           | solver : &mut GraphSolver  |
-           {
-                let outs = vec!( $( stringify!($out) ),+ );
-
-                let ready = vec! ( $( solver.get_value::<$ot>(stringify!($out)).is_ok() ),+ );
-                if ready.iter().fold(true, |acum, b| acum && *b) {
-                    return Ok(SolverStatus::Cached)
-                }
-
-                if solver.use_old_ouput(&outs){
-                    return Ok(SolverStatus::Skiped)
-                }
-
-                // exec body
-                $( let $out : $ot; )+
-                $( $body )+
-
-
-                // save outputs
-                $( let $out : $ot = $out; )+
-                $( solver.save_value(stringify!($out), $out); )+
-
-                Ok(SolverStatus::Executed)
-           },
-           vec!( ),
-           vec!( $( stringify!($out).to_string() ),+ ),
-        )
-    };
-
     // with inputs, with outputs
     ( name: $name:expr,
-      in: ( $( $in:ident : $it:ty ),+ ) ,
+      in: ( $( $in:ident : $it:ty ),* ) ,
       out: ( $( $out:ident : $ot:ty ),* )  $( $body:stmt )+  ) => {
         Node::new($name,
-           | solver : &mut GraphSolver  |
+           move | solver : &mut GraphSolver  |
            {
                 // get inputs
-                $( let $in : $it = solver.get_value::<$it>(stringify!($in))?; )+
-                let eq = vec!( $( solver.input_is_new(&$in, stringify!($in)) ),+ );
-                if !eq.iter().fold(true, |acum, b| acum && *b) {
+                $( let $in : $it = solver.get_value::<$it>(stringify!($in))?; )*
+                let eq = vec!( $( solver.input_is_new(&$in, stringify!($in)) ),* );
+                // if any of the inputs is new (or there are no imputs)
+                if !eq.iter().fold(false, |acum, b| acum || *b){
                     let outs = vec!( $( stringify!($out) ),* );
                     if solver.use_old_ouput(&outs){
-                        return Ok(SolverStatus::Skiped)
+                        return Ok(SolverStatus::Cached);
                     }
                 }
 
@@ -415,35 +382,10 @@ macro_rules! create_node(
 
                 Ok(SolverStatus::Executed)
            },
-           vec!( $( stringify!($in).to_string() ),+ ),
+           vec!( $( stringify!($in).to_string() ),* ),
            vec!( $( stringify!($out).to_string() ),* ),
        )
     };
-
-//    // with inputs, no outputs
-//    ( name: $name:expr ,
-//      in: ( $( $in:ident : $it:ty ),+ ) ,
-//      out: ( )  $( $body:stmt )+  ) => {
-//        Node::new($name,
-//           | solver : &mut GraphSolver  |
-//           {
-//                // get inputs
-//                $( let $in : $it = solver.get_value(stringify!($in))?; )+
-//                let eq = vec!( $( solver.input_is_new(&$in, stringify!($in)) ),+ );
-//                if !eq.iter().fold(true, |acum, b| acum && *b) {
-//                    return Ok(SolverStatus::Skiped)
-//                }
-//
-//                // exec body
-//                $( $body )+
-//
-//                Ok(SolverStatus::Executed)
-//           },
-//           vec!( $( stringify!($in).to_string() ),+ ),
-//           vec!()
-//       )
-//    };
-
 );
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
