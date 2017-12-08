@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/LuisAyuso/rgraph.svg?branch=master)](https://travis-ci.org/LuisAyuso/rgraph)
+[![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
 # rgraph
 A task graph, runs tasks defined by dependencies. 
 
