@@ -129,25 +129,13 @@ impl Graph {
 
         if !self.nodes
                 .values()
-                .find(|node| {
-                          node.get_ins()
-                              .iter()
-                              .find(|name| name.as_str() == sink)
-                              .is_some()
-                      })
-                .is_some() {
+                .any(|node| node.get_ins().iter().any(|name| name.as_str() == sink)) {
             return Err(GraphError::UndefinedAssetSlot(sink.into()));
         }
 
         if !self.nodes
                 .values()
-                .find(|node| {
-                          node.get_outs()
-                              .iter()
-                              .find(|name| name.as_str() == src)
-                              .is_some()
-                      })
-                .is_some() {
+                .any(|node| node.get_outs().iter().any(|name| name.as_str() == src)) {
             return Err(GraphError::UndefinedAssetSlot(src.into()));
         }
 
@@ -190,7 +178,7 @@ impl Cache for ValuesCache {
     fn get_value<T>(&self, name: &str) -> Result<T, SolverError>
         where T: Clone + 'static
     {
-        if let Some(ptr) = self.get(name.into()) {
+        if let Some(ptr) = self.get(name) {
             if let Some(x) = ptr.as_ref().downcast_ref::<T>() {
                 return Ok(x.clone());
             } else {
@@ -364,12 +352,12 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
 
     /// function to decide whenever the set of values is still valid or the producing node of
     /// any of the values needs to be executed
-    pub fn use_old_ouput(&mut self, ouputs: &Vec<&str>) -> bool {
+    pub fn use_old_ouput(&mut self, ouputs: &[&str]) -> bool {
 
         for out in ouputs {
             let name: String = (*out).into();
             if let Some(x) = self.last_cache.get(&name) {
-                self.cache.insert(name, x.clone());
+                self.cache.insert(name, Rc::clone(x));
             } else {
                 return false;
             }
@@ -386,7 +374,7 @@ impl<'a, 'b> Cache for GraphSolver<'a, 'b> {
     fn get_value<T>(&self, name: &str) -> Result<T, SolverError>
         where T: Clone + 'static
     {
-        if let Some(ptr) = self.cache.get(name.into()) {
+        if let Some(ptr) = self.cache.get(name) {
             if let Some(x) = ptr.as_ref().downcast_ref::<T>() {
                 return Ok(x.clone());
             } else {
@@ -416,9 +404,6 @@ impl<'a, 'b> Drop for GraphSolver<'a, 'b> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    //#![macro_use]
-    use macros::*;
 
     #[test]
     fn graph() {

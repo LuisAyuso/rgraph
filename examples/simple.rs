@@ -59,9 +59,10 @@ fn main() {
             assert!(solver
                         .get_value::<u32>("plus_one :: plusone")
                         .expect("never created?") == 2);
-            assert!(solver
-                        .get_value::<f32>("the_one_task :: last_value")
-                        .expect("never created?") == 3.0);
+            assert!((solver
+                         .get_value::<f32>("the_one_task :: last_value")
+                         .expect("not cached?") - 3.0)
+                            .abs() < 0.01);
         }
 
         assert!(cache
@@ -70,9 +71,10 @@ fn main() {
         assert!(cache
                     .get_value::<u32>("plus_one :: plusone")
                     .expect("not cached?") == 2);
-        assert!(cache
-                    .get_value::<f32>("the_one_task :: last_value")
-                    .expect("not cached?") == 3.0);
+        assert!((cache
+                     .get_value::<f32>("the_one_task :: last_value")
+                     .expect("not cached?") - 3.0)
+                        .abs() < 0.01);
 
     }
 }

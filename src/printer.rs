@@ -36,25 +36,24 @@ mod topo {
             dot::Id::new(format!("{}", n)).unwrap()
         }
         fn edge_label<'b>(&'b self, edge: &Ed) -> dot::LabelText<'b> {
-            let &(_, _, ref from, ref to) = edge;
+            let &(_, _, from, to) = edge;
             dot::LabelText::LabelStr(format!("{} -> {}", to, from).into())
         }
     }
 
 
     impl<'a> dot::GraphWalk<'a, Nd<'a>, Ed<'a>> for Graph {
-
         fn nodes(&'a self) -> dot::Nodes<'a, Nd<'a>> {
             self.iter().map(|s| s.0.as_str()).collect()
         }
 
         fn edges(&'a self) -> dot::Edges<'a, Ed<'a>> {
 
-            let mut ins : Map<&'a str,&'a str> = Map::new();
-            let mut out : Map<&'a str,&'a str> = Map::new();
+            let mut ins: Map<&'a str, &'a str> = Map::new();
+            let mut out: Map<&'a str, &'a str> = Map::new();
 
-            let mut nodes : Vec<&'a str> = Vec::new();
-             
+            let mut nodes: Vec<&'a str> = Vec::new();
+
             for (name, node) in self.iter() {
                 let name_str = name.as_str();
                 nodes.push(name_str);
@@ -65,14 +64,15 @@ mod topo {
                     out.insert(output.as_str(), name_str);
                 }
             }
-            self.bindings.iter().map(|b|  {
-                    (*out.get(b.1.as_str()).expect("malformed graph"), 
-                     *ins.get(b.0.as_str()).expect("malformed graph"),
-                     b.1.as_str(), b.0.as_str()
-                     ) 
-                    }) .collect()
-
-
+            self.bindings
+                .iter()
+                .map(|b| {
+                         (*out.get(b.1.as_str()).expect("malformed graph"),
+                          *ins.get(b.0.as_str()).expect("malformed graph"),
+                          b.0.as_str(),
+                          b.1.as_str())
+                     })
+                .collect()
         }
 
         fn source(&self, e: &Ed<'a>) -> Nd<'a> {
@@ -132,8 +132,10 @@ mod tests {
     #[test]
     fn dot2() {
         let mut g = get_test_graph();
-        g.bind_asset("no_input :: i", "sink_1 :: input").expect("binding should exist");
-        g.bind_asset("no_input :: i", "sink_2 :: name").expect("binding should exist");
+        g.bind_asset("no_input :: i", "sink_1 :: input")
+            .expect("binding should exist");
+        g.bind_asset("no_input :: i", "sink_2 :: name")
+            .expect("binding should exist");
         dot::render(&g, &mut io::stdout()).expect("it should draw");
     }
 }
