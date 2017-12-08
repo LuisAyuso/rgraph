@@ -1,4 +1,16 @@
 
+#[macro_export]
+macro_rules! asset_name(
+    ($node:ident, $asset:ident) => {
+        concat!(stringify!($node), "::", stringify!($asset))
+    };
+    ($node:expr, $asset:ident) => {
+        concat!($node, "::", stringify!($asset))
+    };
+    ($node:expr, $asset:expr) => {
+        concat!($node, "::", $asset)
+    };
+);
 
 /// Macro to generate a Node (Task).
 /// It requires:
@@ -19,13 +31,14 @@ macro_rules! create_node(
                 // get inputs
                 $( 
                     let $in : $it = solver.get_value::<$it>(
-                                        solver.get_binding(stringify!($name::$in))?
+                                        solver.get_binding(asset_name!($name,$in))?
                                 )?;
                 )*
+
                 // if any of the inputs is new (or there are no imputs)
-                let eq = [ $( solver.input_is_new(&$in, stringify!($name::$in)) ),* ];
+                let eq = [ $( solver.input_is_new(&$in, asset_name!($name,$in)) ),* ];
                 if !eq.iter().fold(false, |acum, b| acum || *b){
-                    let outs = vec!( $( stringify!($name::$out) ),* );
+                    let outs = vec!( $( asset_name!($name,$out) ),* );
                     if solver.use_old_ouput(&outs){
                         return Ok(SolverStatus::Cached);
                     }
@@ -37,12 +50,24 @@ macro_rules! create_node(
 
                 // save outputs (re assign, this guarantees output type)
                 $( let $out : $ot = $out; )*
-                $( solver.save_value(stringify!($name::$out), $out); )*
+                $( solver.save_value(asset_name!($name,$out), $out); )*
 
+                // set the status to executed
                 Ok(SolverStatus::Executed)
            },
-           vec!( $( stringify!($name::$in).to_string() ),* ),
-           vec!( $( stringify!($name::$out).to_string() ),* ),
+           vec!( $( asset_name!($name,$in).to_string() ),* ),
+           vec!( $( asset_name!($name,$out).to_string() ),* ),
        )
     };
 );
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn names() {
+        assert!(asset_name!(one, two) == "one::two");
+        assert!(asset_name!("one", two) == "one::two");
+        assert!(asset_name!("one", "two") == "one::two");
+    }
+}

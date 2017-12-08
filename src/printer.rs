@@ -2,6 +2,7 @@
 
 use super::*;
 
+/// Prints a basic layout of nodes declared and assets they use
 pub fn print_info(graph: &Graph) {
     for (name, node) in graph.iter() {
         print!("node: {} (", name);
@@ -20,8 +21,6 @@ mod topo {
 
     use super::*;
 
-    //use std::borrow::Cow;
-    //use std::io::Write;
     use std::collections::BTreeMap as Map;
     use std::vec::Vec;
 
@@ -30,7 +29,7 @@ mod topo {
 
     impl<'a> dot::Labeller<'a, Nd<'a>, Ed<'a>> for Graph {
         fn graph_id(&'a self) -> dot::Id<'a> {
-            dot::Id::new("example2").unwrap()
+            dot::Id::new("rgraph").unwrap()
         }
         fn node_id(&'a self, n: &Nd) -> dot::Id<'a> {
             dot::Id::new(format!("{}", n)).unwrap()
@@ -40,7 +39,6 @@ mod topo {
             dot::LabelText::LabelStr(format!("{} -> {}", to, from).into())
         }
     }
-
 
     impl<'a> dot::GraphWalk<'a, Nd<'a>, Ed<'a>> for Graph {
         fn nodes(&'a self) -> dot::Nodes<'a, Nd<'a>> {
@@ -97,27 +95,26 @@ mod tests {
     #![macro_use]
     use super::*;
 
-    use std::io;
-
     fn get_test_graph() -> Graph {
         let mut g = Graph::new();
         g.add_node(create_node!(sink_1 ( input : u32) -> ()
                                  {
                                      println!("sink 1 {}", input);
-                                 }));
+                                 })).unwrap();
 
         g.add_node(create_node!(sink_2 ( name : u32) -> ()
                                  {
                                      println!("sink 2 {}", name);
-                                 }));
+                                 })).unwrap();
 
         g.add_node(create_node!(no_input () -> ( i : u32)
                                  {
                                      i =  1234;
                                      println!("produce {}", i);
-                                 }));
+                                 })).unwrap();
         g
     }
+
     #[test]
     fn info() {
         let g = get_test_graph();
@@ -127,15 +124,24 @@ mod tests {
     #[test]
     fn dot() {
         let g = get_test_graph();
-        dot::render(&g, &mut io::stdout()).expect("it should draw");
+        let mut output = Vec::new();
+        dot::render(&g, &mut output).expect("it should draw");
+        let dot_text = String::from_utf8(output).unwrap();
+        println!("{}", dot_text);
     }
+
     #[test]
     fn dot2() {
         let mut g = get_test_graph();
-        g.bind_asset("no_input :: i", "sink_1 :: input")
+
+        g.bind_asset("no_input::i", "sink_1::input")
             .expect("binding should exist");
-        g.bind_asset("no_input :: i", "sink_2 :: name")
+        g.bind_asset("no_input::i", "sink_2::name")
             .expect("binding should exist");
-        dot::render(&g, &mut io::stdout()).expect("it should draw");
+
+        let mut output = Vec::new();
+        dot::render(&g, &mut output).expect("it should draw");
+        let dot_text = String::from_utf8(output).unwrap();
+        println!("{}", dot_text);
     }
 }

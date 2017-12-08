@@ -12,14 +12,14 @@ fn main() {
                     println!("              gen one");
                     one = 1u32;
                 }
-            ));
+            )).unwrap();
 
     g.add_node(create_node!(
                 plus_one (one: u32) -> (plusone : u32) {
                     println!("              plusone");
                     plusone = one + 1u32;
                 }
-            ));
+            )).unwrap();
 
     g.add_node(create_node!(
                 the_one_task  (one: u32, plusone : u32) ->
@@ -27,19 +27,19 @@ fn main() {
                     println!("              the one task");
                     last_value = (one + plusone) as f32;
                 }
-            ));
+            )).unwrap();
 
     g.add_node(create_node!(
                 list (list : Vec<u32>) -> () {
                     println!("             list");
                 }
-            ));
+            )).unwrap();
 
-    g.bind_asset("gen_one :: one", "plus_one :: one")
+    g.bind_asset("gen_one::one", "plus_one::one")
         .expect("binding must be doable");
-    g.bind_asset("gen_one :: one", "the_one_task :: one")
+    g.bind_asset("gen_one::one", "the_one_task::one")
         .expect("binding must be doable");
-    g.bind_asset("plus_one :: plusone", "the_one_task :: plusone")
+    g.bind_asset("plus_one::plusone", "the_one_task::plusone")
         .expect("binding must be doable");
 
     let mut cache = ValuesCache::new();
@@ -49,30 +49,31 @@ fn main() {
         {
             let mut solver = GraphSolver::new(&g, &mut cache);
             assert!(solver.execute("nop").is_err());
+
             solver.execute("the_one_task").expect("could not execute");
 
             println!("{:?}", solver.get_values());
 
             assert!(solver
-                        .get_value::<u32>("gen_one :: one")
+                        .get_value::<u32>("gen_one::one")
                         .expect("never created?") == 1);
             assert!(solver
-                        .get_value::<u32>("plus_one :: plusone")
+                        .get_value::<u32>("plus_one::plusone")
                         .expect("never created?") == 2);
             assert!((solver
-                         .get_value::<f32>("the_one_task :: last_value")
+                         .get_value::<f32>("the_one_task::last_value")
                          .expect("not cached?") - 3.0)
                             .abs() < 0.01);
         }
 
         assert!(cache
-                    .get_value::<u32>("gen_one :: one")
+                    .get_value::<u32>("gen_one::one")
                     .expect("not cached?") == 1);
         assert!(cache
-                    .get_value::<u32>("plus_one :: plusone")
+                    .get_value::<u32>("plus_one::plusone")
                     .expect("not cached?") == 2);
         assert!((cache
-                     .get_value::<f32>("the_one_task :: last_value")
+                     .get_value::<f32>("the_one_task::last_value")
                      .expect("not cached?") - 3.0)
                         .abs() < 0.01);
 
