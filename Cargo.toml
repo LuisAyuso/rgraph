@@ -2,6 +2,10 @@
 name = "rgraph"
 version = "0.1.0"
 authors = ["Luis Ayuso <luis.f.ayuso@gmail.com>"]
+include = [
+    "**/*.rs",
+    "Cargo.toml",
+]
 
 [dependencies]
 dot = "0.1.2"
