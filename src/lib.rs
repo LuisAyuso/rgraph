@@ -709,15 +709,15 @@ mod tests {
                                      println!("sink 2 {}", name);
                                  })).unwrap();
 
-        g.add_node(create_node!(no_input () -> ( i : u32)
+        g.add_node(create_node!(no_input () -> ( o : u32)
                                  {
-                                     i =  1234;
-                                     println!("produce {}", i);
+                                     o =  1234;
+                                     println!("produce {}", o);
                                  })).unwrap();
 
-        g.bind_asset("no_input::i", "sink_1::input")
+        g.bind_asset("no_input::o", "sink_1::input")
             .expect("binding must be doable");
-        g.bind_asset("no_input::i", "sink_2::name")
+        g.bind_asset("no_input::o", "sink_2::name")
             .expect("binding must be doable");
 
         let mut cache = ValuesCache::new();
@@ -727,7 +727,7 @@ mod tests {
         }
 
         assert!(cache
-                    .get_value::<u32>("no_input::i")
+                    .get_value::<u32>("no_input::o")
                     .expect("must be f32") == 1234);
     }
     #[test]
@@ -764,8 +764,22 @@ mod tests {
                                      { output = input; })).unwrap();
 
         }
-        // add sequential linking
 
-        b.iter(|| 1+2);
+        printer::print_info(&g);
+
+        // add sequential linking
+        for i in 1..10000-1{
+            let src = format!("task{}::output", i);
+            let sink = format!("task{}::input", i+1);
+            g.bind_asset(src.as_str(), sink.as_str()) 
+                .expect("binding must be doable");
+        }
+
+        b.iter(||{
+            let mut cache = ValuesCache::new();
+            let mut solver = GraphSolver::new(&g, &mut cache);
+
+            solver.execute_terminals().expect("this should run");
+        });
     }
 }
