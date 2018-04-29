@@ -309,7 +309,6 @@ impl Graph {
             _ => name,
         };
 
-        println!("provider: {}", provider);
         let key: String = provider.into();
         if let Some(node) = self.whatprovides.get(&key).map(|res| res.as_ref()){
             return AssetProvider::Node(node);
@@ -327,14 +326,6 @@ impl Graph {
             .values()
             .flat_map(|n| n.get_ins().iter())
             .filter(|asset| { 
-
-                println!("asset: {} ", asset);
-                if let AssetProvider::Node(n) =  self.what_provides(asset.as_str()){
-                    println!(" - by {}", n.get_name());
-                }
-
-                //println!("{:?}", self.freestanding_assets);
-
                 self.what_provides(asset.as_str()).is_none()
             })
             .collect()
@@ -544,7 +535,6 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
 
         for node in to_run.iter().rev() {
             let _r = node.run(self)?;
-            println!("{} {:?}", node.get_name(), _r);
         }
 
         Ok(SolverStatus::Executed)
@@ -881,14 +871,13 @@ mod tests {
     fn benchmark_sequential(b: &mut Bencher) {
         let mut g = Graph::new();
 
-        let max = 10;
+        let max = 1000;
 
         // generate 10000 nodes
         for i in 1..max {
             let name: String = format!("task{}", i);
             g.add_node(create_node!(name: name, ( input : u32) -> (output : u32)
                                      { 
-                                         println!("value: {}", input);
                                          output = input +1 ;
                                      }))
                 .unwrap();
@@ -899,7 +888,7 @@ mod tests {
         for i in 1..max - 1 {
             let src = format!("task{}::output", i);
             let sink = format!("task{}::input", i + 1);
-            println!("  {} -> {}", src, sink);
+            //println!("  {} -> {}", src, sink);
             g.bind_asset(src.as_str(), sink.as_str())
                 .expect("binding must be doable");
         }
@@ -908,7 +897,7 @@ mod tests {
             g.bind_asset("start", "task1::input")
                 .expect("could not bind first tast to start value");
 
-        printer::print_info(&g);
+        // printer::print_info(&g);
 
         b.iter(|| {
             let mut cache = ValuesCache::new();
