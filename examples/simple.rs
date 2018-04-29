@@ -4,7 +4,6 @@ use rgraph::*;
 use std::vec::Vec;
 
 fn main() {
-
     let mut g = Graph::new();
 
     g.add_node(create_node!(
@@ -45,7 +44,6 @@ fn main() {
     let mut cache = ValuesCache::new();
 
     for _ in 0..10 {
-
         {
             let mut solver = GraphSolver::new(&g, &mut cache);
             assert!(solver.execute("nop").is_err());
@@ -54,28 +52,35 @@ fn main() {
 
             println!("{:?}", solver.get_values());
 
-            assert!(solver
-                        .get_value::<u32>("gen_one::one")
-                        .expect("never created?") == 1);
-            assert!(solver
-                        .get_value::<u32>("plus_one::plusone")
-                        .expect("never created?") == 2);
-            assert!((solver
-                         .get_value::<f32>("the_one_task::last_value")
-                         .expect("not cached?") - 3.0)
-                            .abs() < 0.01);
+            assert!(
+                solver
+                    .get_value::<u32>("gen_one::one")
+                    .expect("never created?") == 1
+            );
+            assert!(
+                solver
+                    .get_value::<u32>("plus_one::plusone")
+                    .expect("never created?") == 2
+            );
+            assert!(
+                (solver
+                    .get_value::<f32>("the_one_task::last_value")
+                    .expect("not cached?") - 3.0)
+                    .abs() < 0.01
+            );
         }
 
-        assert!(cache
-                    .get_value::<u32>("gen_one::one")
-                    .expect("not cached?") == 1);
-        assert!(cache
-                    .get_value::<u32>("plus_one::plusone")
-                    .expect("not cached?") == 2);
-        assert!((cache
-                     .get_value::<f32>("the_one_task::last_value")
-                     .expect("not cached?") - 3.0)
-                        .abs() < 0.01);
-
+        assert!(cache.get_value::<u32>("gen_one::one").expect("not cached?") == 1);
+        assert!(
+            cache
+                .get_value::<u32>("plus_one::plusone")
+                .expect("not cached?") == 2
+        );
+        assert!(
+            (cache
+                .get_value::<f32>("the_one_task::last_value")
+                .expect("not cached?") - 3.0)
+                .abs() < 0.01
+        );
     }
 }

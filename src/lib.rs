@@ -1,21 +1,21 @@
 //!
 //!   The rGaph crate:
 //!   
-//! This library provides the mechanisms to define a directed acyclic graph of tasks. 
-//! Once the graph is generated, a solver object can be instantiated to execute any of the tasks defined. 
-//! In order to satisfy the input of such task, all the producer tasks will be executed as well. 
-//! 
+//! This library provides the mechanisms to define a directed acyclic graph of tasks.
+//! Once the graph is generated, a solver object can be instantiated to execute any of the tasks defined.
+//! In order to satisfy the input of such task, all the producer tasks will be executed as well.
+//!
 //! A task can be defined like you would define a function, it requires:
 //! - A name
 //! - A list of inputs, that well may be empty.
 //! - A list of outputs, which can be empty as well.
 //! - Body, executing the code necessary to produce the outputs out of the inputs.
-//! 
+//!
 //! The macro `create_node!` will help you out with this task:
-//! 
+//!
 //! ```
 //! use rgraph::*;
-//! 
+//!
 //! create_node!(
 //!          task_name  (a: u32, b : u32) -> (output: u32) {
 //!              // return is done by assigning to the output variable
@@ -23,40 +23,40 @@
 //!          }
 //!      );
 //! ```
-//! 
-//! The body of the task will be executed by a move lambda, this enforces some guarantees. 
+//!
+//! The body of the task will be executed by a move lambda, this enforces some guarantees.
 //! Nevertheless if the tasks need to execute some side effects, you may keep in mind that:
 //! - Objects need to be cloned into the task scope.
 //! - Only runtime borrowing can be checked at this point.
-//! - The Solver has no knowledge of data changes done via global access. It only tracks assets 
-//! registered as inputs or outputs of the task. For this reason tasks may not be executed a second 
-//! time as long as the inputs do not change. This may turn into side effects not happening because 
+//! - The Solver has no knowledge of data changes done via global access. It only tracks assets
+//! registered as inputs or outputs of the task. For this reason tasks may not be executed a second
+//! time as long as the inputs do not change. This may turn into side effects not happening because
 //! the requirements were not declared correctly.  
-//! 
+//!
 //! Once the tasks are defined, you can bind the input assets to the output produced by other task
 //! or feed directly into the Solver.
-//! 
+//!
 //! ```
 //! use rgraph::*;
 //! let mut g = Graph::new();
 //!  
 //! g.add_node(create_node!(
 //!          task1  () -> (out_asset: u32) {
-//!              // .... task body 
+//!              // .... task body
 //!              out_asset = 1;
 //!          }
 //!      ));
 //!      
 //! g.add_node(create_node!(
 //!          task2  (in_asset : u32) -> () {
-//!              // .... task body 
+//!              // .... task body
 //!          }
 //!      ));
 //!  
 //! g.bind_asset("task1::out_asset", "task2::in_asset").expect(" tasks and assets must exist");
 //! ```
-//! 
-//! Finally, to execute the Graph: 
+//!
+//! Finally, to execute the Graph:
 //!  - Create an assets cache object (which can be reused to execute the graph again)
 //!  - Create a solver, to be used one single time and then dropped.
 //!  
@@ -67,18 +67,18 @@
 //!  // ... create graph and bind the assets
 //! # g.add_node(create_node!(
 //! #          task1  () -> (out_asset: u32) {
-//! #              // .... task body 
+//! #              // .... task body
 //! #              out_asset = 1;
 //! #          }
 //! #      ));
 //! #      
 //! # g.add_node(create_node!(
 //! #          task2  (in_asset : u32) -> () {
-//! #              // .... task body 
+//! #              // .... task body
 //! #          }
 //! #      ));
 //! # g.bind_asset("task1::out_asset", "task2::in_asset").expect(" tasks and assets must exist");
-//! 
+//!
 //! let mut cache = ValuesCache::new();
 //! let mut solver = GraphSolver::new(&g, &mut cache);
 //! // terminal tasks are those which do not produce output
@@ -92,16 +92,16 @@
 extern crate dot;
 extern crate test;
 
-use std::collections::BTreeMap as Map;
-use std::vec::Vec;
 use std::any::Any;
-use std::rc::Rc;
-use std::mem;
 use std::cmp;
+use std::collections::BTreeMap as Map;
+use std::mem;
+use std::rc::Rc;
+use std::vec::Vec;
 
 #[macro_use]
 mod macros;
-mod printer;
+pub mod printer;
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -117,7 +117,8 @@ pub trait NodeRunner {
 /// Generic that stores the information required to execute arbitrary tasks
 /// Please use `create_node` macro to instantiate this objects
 pub struct Node<F>
-    where F: Fn(&mut GraphSolver) -> Result<SolverStatus, SolverError>
+where
+    F: Fn(&mut GraphSolver) -> Result<SolverStatus, SolverError>,
 {
     name: String,
     func: F,
@@ -126,10 +127,12 @@ pub struct Node<F>
 }
 
 impl<F> Node<F>
-    where F: Fn(&mut GraphSolver) -> Result<SolverStatus, SolverError>
+where
+    F: Fn(&mut GraphSolver) -> Result<SolverStatus, SolverError>,
 {
-    pub fn new<S>(name: S, func: F, ins: Vec<String>, outs: Vec<String>) -> Node<F> 
-    where S: Into<String>
+    pub fn new<S>(name: S, func: F, ins: Vec<String>, outs: Vec<String>) -> Node<F>
+    where
+        S: Into<String>,
     {
         Node {
             name: name.into(),
@@ -141,7 +144,8 @@ impl<F> Node<F>
 }
 
 impl<F> NodeRunner for Node<F>
-    where F: Fn(&mut GraphSolver) -> Result<SolverStatus, SolverError>
+where
+    F: Fn(&mut GraphSolver) -> Result<SolverStatus, SolverError>,
 {
     fn get_name(&self) -> &str {
         self.name.as_str()
@@ -160,12 +164,28 @@ impl<F> NodeRunner for Node<F>
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+pub enum AssetProvider<'a>{
+    None,
+    Node(&'a NodeRunner),
+    Preset(&'a String)
+}
+
+impl<'a> AssetProvider<'a>{
+    pub fn is_none(&'a self) -> bool{
+        match self{
+            AssetProvider::None => true,
+            _ => false,
+        }
+    }
+}
+
 /// Errors that may happen during Graph construction
 #[derive(Debug)]
 pub enum GraphError {
     UndefinedAssetSlot(String),
     RedefinedNode(String),
     DisconnectedDependency,
+    RedeclaredAsset(String),
 }
 
 /// The graph class itself.
@@ -177,20 +197,24 @@ pub struct Graph {
     terminals: Vec<Rc<NodeRunner>>,
     whatprovides: Map<String, Rc<NodeRunner>>,
     bindings: Map<String, String>,
+    freestanding_assets: Vec<String>,
 }
 
 impl Graph {
     pub fn new() -> Graph {
-        Graph { ..Default::default() }
+        Graph {
+            ..Default::default()
+        }
     }
 
     pub fn add_node<F: 'static>(&mut self, node: Node<F>) -> Result<(), GraphError>
-        where F: Fn(&mut GraphSolver) -> Result<SolverStatus, SolverError>
+    where
+        F: Fn(&mut GraphSolver) -> Result<SolverStatus, SolverError>,
     {
         let newnode = Rc::new(node);
         let name: String = newnode.as_ref().get_name().into();
 
-        if self.nodes.contains_key(&name){
+        if self.nodes.contains_key(&name) {
             return Err(GraphError::RedefinedNode(name));
         }
 
@@ -222,22 +246,55 @@ impl Graph {
         self.bindings.get(name)
     }
 
+    /// declares and initializes a freestanding asset, this assets are defined as global inputs
+    /// to the graph and can be used to feed initial values in the system
+    pub fn define_freestanding_asset<T: 'static+Clone>(&mut self, name: &str, val :T)  -> Result<(), GraphError>{
+
+
+        if self.freestanding_assets.iter()
+            .any(|name| name.as_str() == name)
+        {
+            return Err(GraphError::RedeclaredAsset(name.into()));
+        }
+        self.freestanding_assets.push(name.into());
+
+        let name : String = name.into();
+        self.add_node(create_node!(name: name, () -> (value : T)
+                                 {
+                                     value = val.clone();
+                                 }))
+    }
+
     /// Binds two nodes. An asset satisfied by a task, will be the input for another task
     /// under a different asset name.
     /// One output asset can be used in one or more inputs.
-    /// If the input is already bound, the link will be overwritten 
+    /// If the input is already bound, the link will be overwritten
     pub fn bind_asset(&mut self, src: &str, sink: &str) -> Result<(), GraphError> {
 
         if !self.nodes
-                .values()
-                .any(|node| node.get_ins().iter().any(|name| name.as_str() == sink)) {
+            .values()
+            .any(|node| node.get_ins().iter().any(|name| name.as_str() == sink))
+        {
             return Err(GraphError::UndefinedAssetSlot(sink.into()));
         }
 
+        let src : String = {
+            if self.freestanding_assets
+                .iter()
+                .any(|name| name.as_str() == src)
+            {
+                format!("{}::value", src)
+            }
+            else{
+                src.into()
+            }
+        };
+
         if !self.nodes
-                .values()
-                .any(|node| node.get_outs().iter().any(|name| name.as_str() == src)) {
-            return Err(GraphError::UndefinedAssetSlot(src.into()));
+            .values()
+            .any(|node| node.get_outs().iter().any(|name| name.as_str() == src.as_str()))
+        {
+             return Err(GraphError::UndefinedAssetSlot(src.into()));
         }
 
         self.bindings.insert(sink.into(), src.into());
@@ -245,21 +302,46 @@ impl Graph {
     }
 
     /// For a given asset name, identifies which node generates the it
-    pub fn what_provides(&self, name: &str) -> Option<&NodeRunner> {
-
+    pub fn what_provides(&self, name: &str) -> AssetProvider {
         // which asset satisfies this input?
-        let provider =  match self.get_binding_str(name){
+        let provider = match self.get_binding_str(name) {
             Some(asset) => asset,
             _ => name,
         };
 
+        println!("provider: {}", provider);
         let key: String = provider.into();
-        self.whatprovides.get(&key).map(|res| res.as_ref())
+        if let Some(node) = self.whatprovides.get(&key).map(|res| res.as_ref()){
+            return AssetProvider::Node(node);
+        }
+
+        if let Some(name) = self.freestanding_assets.iter().find(|elem| *elem == &key){
+            return AssetProvider::Preset(name);
+        }
+
+        return AssetProvider::None;
     }
 
-    pub fn get_free_assets(&self) -> Vec<&String>{
-        self.nodes.values().flat_map(|n| n.get_ins().iter()).
-            filter(|asset| self.what_provides(asset.as_str()).is_none()).collect()
+    pub fn get_unbound_assets(&self) -> Vec<&String> {
+        self.nodes
+            .values()
+            .flat_map(|n| n.get_ins().iter())
+            .filter(|asset| { 
+
+                println!("asset: {} ", asset);
+                if let AssetProvider::Node(n) =  self.what_provides(asset.as_str()){
+                    println!(" - by {}", n.get_name());
+                }
+
+                //println!("{:?}", self.freestanding_assets);
+
+                self.what_provides(asset.as_str()).is_none()
+            })
+            .collect()
+    }
+
+    pub fn get_freestanding_assets(&self) -> &Vec<String> {
+        &self.freestanding_assets
     }
 
     fn iter(&self) -> std::collections::btree_map::Iter<String, Rc<NodeRunner>> {
@@ -276,22 +358,29 @@ pub type ValuesCache = Map<String, Rc<Any>>;
 pub trait Cache {
     /// Retrieves a value from the solver. It is required to know the
     /// name and type of the asset. Cast error will return SolveError::AssetWrongType
-    fn get_value<T>(&self, name: &str) -> Result<T, SolverError> where T: Clone + 'static;
+    fn get_value<T>(&self, name: &str) -> Result<T, SolverError>
+    where
+        T: Clone + 'static;
 
     /// Saves a value to be available during execution. This routine
-    /// can be used to feed initial values for Assets. i.e. free Assets not
+    /// can be used to feed initial values for Assets. i.e. unbond assets Assets not
     /// generated by any Task.
-    fn save_value<T>(&mut self, name: &String, value: T) where T: Clone + 'static;
+    fn save_value<T>(&mut self, name: &String, value: T)
+    where
+        T: Clone + 'static;
 
     /// Saves a value to be available during execution. This routine
-    /// can be used to feed initial values for Assets. i.e. free Assets not
+    /// can be used to feed initial values for Assets. i.e. unbond assets Assets not
     /// generated by any Task.
-    fn save_value_str<T>(&mut self, name: &str, value: T) where T: Clone + 'static;
+    fn save_value_str<T>(&mut self, name: &str, value: T)
+    where
+        T: Clone + 'static;
 }
 
 impl Cache for ValuesCache {
     fn get_value<T>(&self, name: &str) -> Result<T, SolverError>
-        where T: Clone + 'static
+    where
+        T: Clone + 'static,
     {
         if let Some(ptr) = self.get(name) {
             if let Some(x) = ptr.as_ref().downcast_ref::<T>() {
@@ -304,13 +393,15 @@ impl Cache for ValuesCache {
     }
 
     fn save_value<T>(&mut self, name: &String, value: T)
-        where T: Clone + 'static
+    where
+        T: Clone + 'static,
     {
         self.save_value_str(name.as_str(), value);
     }
 
     fn save_value_str<T>(&mut self, name: &str, value: T)
-        where T: Clone + 'static
+    where
+        T: Clone + 'static,
     {
         let ptr: Rc<Any> = Rc::new(value);
         self.insert(name.into(), ptr);
@@ -328,7 +419,8 @@ pub trait Comparable {
 }
 
 impl<T> Comparable for T
-    where T: cmp::PartialEq
+where
+    T: cmp::PartialEq,
 {
     fn ne(&self, other: &Self) -> bool {
         self != other
@@ -363,6 +455,11 @@ pub enum SolverError {
     AssetUnbound(String),
     /// No node was found with this name.
     NodeNotFound(String),
+    /// The current graph has no terminal nodes (no output)
+    NoTerminalsDefined,
+
+    /// WIP
+    NotImplemented
 }
 
 /// Type to differentiate cached tasks from executed ones
@@ -393,11 +490,9 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
     /// Executes a task by name, all tasks needed to provide Assets
     /// are transitively executed
     pub fn execute(&mut self, name: &str) -> Result<SolverStatus, SolverError> {
-
         let node = self.graph.get_node(name);
         if node.is_none() {
             return Err(SolverError::NodeNotFound(name.into()));
-
         }
         self.execute_all(&[node.unwrap()])
     }
@@ -408,11 +503,13 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
             .iter()
             .map(|x| x.as_ref())
             .collect();
+        if tmp.is_empty() {
+            return Err(SolverError::NoTerminalsDefined);
+        }
         self.execute_all(tmp.as_slice())
     }
 
     fn execute_all(&mut self, nodes: &[&NodeRunner]) -> Result<SolverStatus, SolverError> {
-
         let mut queue = Vec::new();
         let mut to_run = Vec::new();
 
@@ -430,11 +527,12 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
                             return Err(SolverError::AssetNotDeclared(input.clone()));
                         }
                     }
-                    Some(producer_binding) => {
-                        match self.graph.what_provides(producer_binding) {
-                            Some(n) => queue.push(n),
-                            None => {
-                                return Err(SolverError::AssetNotProduced(producer_binding.clone()));
+                    Some(input_binding) => {
+                        match self.graph.what_provides(input_binding) {
+                            AssetProvider::Node(n) => queue.push(n),
+                            AssetProvider::Preset(_) => return Err(SolverError::NotImplemented), 
+                            AssetProvider::None => {
+                                return Err(SolverError::AssetNotProduced(input_binding.clone()));
                             }
                         };
                     }
@@ -458,7 +556,8 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
     /// output is available. The output will be considered valid and the computation
     /// skipped
     pub fn input_is_new<T>(&self, new_value: &T, name: &String) -> bool
-        where T: Clone + Comparable + 'static
+    where
+        T: Clone + Comparable + 'static,
     {
         self.input_is_new_str(new_value, name.as_str())
     }
@@ -469,10 +568,11 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
     /// output is available. The output will be considered valid and the computation
     /// skipped
     pub fn input_is_new_str<T>(&self, new_value: &T, name: &str) -> bool
-        where T: Clone + Comparable + 'static
+    where
+        T: Clone + Comparable + 'static,
     {
         // which asset satisfies this input?
-        let provider =  match self.get_binding(name){
+        let provider = match self.get_binding(name) {
             Ok(asset) => asset,
             _ => name,
         };
@@ -492,8 +592,7 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
 
     /// function to decide whenever the set of values is still valid or the producing node of
     /// any of the values needs to be executed
-    pub fn use_old_ouput<T: AsRef<str>> (&mut self, ouputs: &[T]) -> bool {
-
+    pub fn use_old_ouput<T: AsRef<str>>(&mut self, ouputs: &[T]) -> bool {
         for out in ouputs {
             let name: String = (*out).as_ref().into();
             if let Some(x) = self.last_cache.get(&name) {
@@ -512,7 +611,8 @@ impl<'a, 'b> GraphSolver<'a, 'b> {
 
 impl<'a, 'b> Cache for GraphSolver<'a, 'b> {
     fn get_value<T>(&self, name: &str) -> Result<T, SolverError>
-        where T: Clone + 'static
+    where
+        T: Clone + 'static,
     {
         if let Some(ptr) = self.cache.get(name) {
             if let Some(x) = ptr.as_ref().downcast_ref::<T>() {
@@ -525,13 +625,15 @@ impl<'a, 'b> Cache for GraphSolver<'a, 'b> {
     }
 
     fn save_value<T>(&mut self, name: &String, value: T)
-        where T: Clone + 'static
+    where
+        T: Clone + 'static,
     {
         self.save_value_str(name.as_str(), value);
     }
 
     fn save_value_str<T>(&mut self, name: &str, value: T)
-        where T: Clone + 'static
+    where
+        T: Clone + 'static,
     {
         let ptr: Rc<Any> = Rc::new(value);
         self.cache.insert(name.into(), ptr);
@@ -553,25 +655,28 @@ mod tests {
 
     #[test]
     fn graph() {
-
         let mut g = Graph::new();
 
-        let node = Node::new("one",
-                             |_solver| {
-                                 println!("stored and ran 1");
-                                 Ok(SolverStatus::Executed)
-                             },
-                             vec![],
-                             vec![]);
+        let node = Node::new(
+            "one",
+            |_solver| {
+                println!("stored and ran 1");
+                Ok(SolverStatus::Executed)
+            },
+            vec![],
+            vec![],
+        );
         g.add_node(node).unwrap();
 
-        let node = Node::new("two",
-                             |_solver| {
-                                 println!("stored and ran 2");
-                                 Ok(SolverStatus::Executed)
-                             },
-                             vec![],
-                             vec![]);
+        let node = Node::new(
+            "two",
+            |_solver| {
+                println!("stored and ran 2");
+                Ok(SolverStatus::Executed)
+            },
+            vec![],
+            vec![],
+        );
         g.add_node(node).unwrap();
 
         let mut cache = ValuesCache::new();
@@ -600,7 +705,6 @@ mod tests {
 
     #[test]
     fn construct_nodes() {
-
         let mut g = Graph::new();
         g.add_node(create_node!(no_output ( i : u32, j : u32) -> ()
                                  {
@@ -623,7 +727,6 @@ mod tests {
 
     #[test]
     fn solver() {
-
         let g = Graph::new();
         let mut cache = ValuesCache::new();
         let mut s = GraphSolver::new(&g, &mut cache);
@@ -640,7 +743,6 @@ mod tests {
 
     #[test]
     fn graph_with_assets() {
-
         let mut g = Graph::new();
 
         g.add_node(create_node!(
@@ -690,14 +792,15 @@ mod tests {
                 .expect("could not retrieve result");
         }
 
-        assert!(cache
-                    .get_value::<f32>("the_one_task::last_value")
-                    .expect("must be f32") == 3f32);
+        assert!(
+            cache
+                .get_value::<f32>("the_one_task::last_value")
+                .expect("must be f32") == 3f32
+        );
     }
 
     #[test]
     fn terminals() {
-
         let mut g = Graph::new();
         g.add_node(create_node!(sink_1 ( input : u32) -> ()
                                  {
@@ -720,66 +823,99 @@ mod tests {
         g.bind_asset("no_input::o", "sink_2::name")
             .expect("binding must be doable");
 
+        // slices have no size...
+        // assert!(g.get_terminals().size() == 1);
+
         let mut cache = ValuesCache::new();
         {
             let mut solver = GraphSolver::new(&g, &mut cache);
             solver.execute_terminals().expect("this should run");
         }
 
-        assert!(cache
-                    .get_value::<u32>("no_input::o")
-                    .expect("must be f32") == 1234);
+        assert!(cache.get_value::<u32>("no_input::o").expect("must be f32") == 1234);
     }
+
     #[test]
-    fn free_assets() {
+    fn freestanding_assets() {
         let mut g = Graph::new();
-        assert!(g.get_free_assets().len() == 0);
 
-        g.add_node(create_node!(node1 ( a : u32, b: i32, c: f32) -> ()
-                                 { })).unwrap();
-        assert!(g.get_free_assets().len() == 3);
+        g.add_node(create_node!(node1 ( a : u32) -> ()
+                                 { }))
+            .unwrap();
+        assert!(g.get_unbound_assets().len() == 1);
 
-        g.add_node(create_node!(node2 ( ) -> ( v: i32 )
-                                 { v = 1; })).unwrap();
-        assert!(g.get_free_assets().len() == 3);
+        g.define_freestanding_asset("startvalue", 0).expect("redeclared?");
 
-        g.bind_asset("node2::v", "node1::b")
+        g.bind_asset("startvalue", "node1::a")
             .expect("binding must be doable");
-        println!("{:?}", g.get_free_assets());
-        assert!(g.get_free_assets().len() == 2);
 
+        println!("{:?}", g.get_freestanding_assets());
+        println!("{:?}", g.get_unbound_assets());
+        assert!(g.get_unbound_assets().len() == 0);
+    }
+
+    #[test]
+    fn unbound_assets() {
+        let mut g = Graph::new();
+        assert!(g.get_unbound_assets().len() == 0);
+
+        g.add_node(create_node!(consumer ( a : u32, b: i32, c: f32) -> ()
+                                 { }))
+            .unwrap();
+        assert!(g.get_unbound_assets().len() == 3);
+
+        g.add_node(create_node!(producer ( ) -> ( v: i32 )
+                                 { v = 1; }))
+            .unwrap();
+        assert!(g.get_unbound_assets().len() == 3);
+
+        g.bind_asset("producer::v", "consumer::b")
+            .expect("binding must be doable");
+        println!("{:?}", g.get_unbound_assets());
+        assert!(g.get_unbound_assets().len() == 2);
     }
 
     use test::Bencher;
 
     #[bench]
     fn benchmark_sequential(b: &mut Bencher) {
-
         let mut g = Graph::new();
 
-        // generate 10000 nodes 
-        for i in 1..10000{
-            let name : String= format!("task{}", i);
-            g.add_node(create_node!(name: name, ( input : u32) -> (output : u32)
-                                     { output = input; })).unwrap();
+        let max = 10;
 
+        // generate 10000 nodes
+        for i in 1..max {
+            let name: String = format!("task{}", i);
+            g.add_node(create_node!(name: name, ( input : u32) -> (output : u32)
+                                     { 
+                                         println!("value: {}", input);
+                                         output = input +1 ;
+                                     }))
+                .unwrap();
         }
 
-        printer::print_info(&g);
 
         // add sequential linking
-        for i in 1..10000-1{
+        for i in 1..max - 1 {
             let src = format!("task{}::output", i);
-            let sink = format!("task{}::input", i+1);
-            g.bind_asset(src.as_str(), sink.as_str()) 
+            let sink = format!("task{}::input", i + 1);
+            println!("  {} -> {}", src, sink);
+            g.bind_asset(src.as_str(), sink.as_str())
                 .expect("binding must be doable");
         }
 
-        b.iter(||{
+        g.define_freestanding_asset("start", 0u32).expect("could not create asset");
+            g.bind_asset("start", "task1::input")
+                .expect("could not bind first tast to start value");
+
+        printer::print_info(&g);
+
+        b.iter(|| {
             let mut cache = ValuesCache::new();
             let mut solver = GraphSolver::new(&g, &mut cache);
 
-            solver.execute_terminals().expect("this should run");
+            let last_task = format!("task{}", max-1);
+            solver.execute(last_task.as_str()).expect("this should run");
         });
     }
 }

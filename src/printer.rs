@@ -46,7 +46,6 @@ mod topo {
         }
 
         fn edges(&'a self) -> dot::Edges<'a, Ed<'a>> {
-
             let mut ins: Map<&'a str, &'a str> = Map::new();
             let mut out: Map<&'a str, &'a str> = Map::new();
 
@@ -65,11 +64,13 @@ mod topo {
             self.bindings
                 .iter()
                 .map(|b| {
-                         (*out.get(b.1.as_str()).expect("malformed graph"),
-                          *ins.get(b.0.as_str()).expect("malformed graph"),
-                          b.0.as_str(),
-                          b.1.as_str())
-                     })
+                    (
+                        *out.get(b.1.as_str()).expect("malformed graph"),
+                        *ins.get(b.0.as_str()).expect("malformed graph"),
+                        b.0.as_str(),
+                        b.1.as_str(),
+                    )
+                })
                 .collect()
         }
 
