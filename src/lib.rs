@@ -1,8 +1,41 @@
 //!
-//!   The rGaph crate:
+//!   ## The rGaph crate:
 //!   
 //! This library provides the mechanisms to define a directed acyclic graph of tasks.
 //! Once the graph is generated, a solver object can be instantiated to execute any of the tasks defined.
+//! 
+//! ### High Level description
+//! 
+//! Tasks are defined in the terms of:
+//! - Its input value
+//! - Its output values
+//! - A procedure body that can carry out a task 
+//! 
+//! The values used as inputs and outputs by the system are named assets. Assets can be:
+//! - Input Assets: for values fed into a task.
+//! - Output Assets: for values produced by a task.
+//! - Freestanding Assets: constant values fed into the system which are not computed by any task.
+//! 
+//! With items we can construct a graph of task and execute it in the following manner:
+//! 
+//! 1. Create a set of tasks, each one with its own input and outputs.
+//! 1. Define the order of stages of the computation graph by attaching outputs into the next task
+//!    inputs, this is called binding. It is not required that all assets are bound, but it is
+//!    required that all assets are bound for each task transitivelly involved in a path throw the
+//!    graph. This, for example, can be used to add debug tasks that can be dynamically activated
+//!    and lazily evaluated.
+//! 1. Initialize a cache to store the assets during graph computation, this can be used afterwards
+//!    to retrieve the values.
+//! 1. Solve the graph: there are currently two methods to solve a graph: 
+//!    - execute: where the parameter is the name of the task we want to execute. Prerequisites
+//!    will be identified and executed, if not possible because the topology is ill formed, an
+//!    error will be returned.
+//!    - execute_terminals: terminal tasks are those with no outputs. Any number of terminal tasks
+//!    can be defined, all of them will be executed if prerequistes can be satisfied, otherwise an
+//!    error will be returned.
+//! 
+//! ### Use by example
+//! 
 //! In order to satisfy the input of such task, all the producer tasks will be executed as well.
 //!
 //! A task can be defined like you would define a function, it requires:
@@ -164,6 +197,8 @@ where
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+/// Replacement for Option<NodeRunner> since input assets may be satisfied by a 
+/// freestanding asset as well.
 pub enum AssetProvider<'a>{
     None,
     Node(&'a NodeRunner),
@@ -321,6 +356,8 @@ impl Graph {
         return AssetProvider::None;
     }
 
+    /// reports a collection of *input* assets which are not currenty bound, this elements
+    /// are disconnected and will have no value satisfied during execution.
     pub fn get_unbound_assets(&self) -> Vec<&String> {
         self.nodes
             .values()
@@ -346,6 +383,8 @@ impl Graph {
 /// type used to store results of executions and pass it to further solver instances
 pub type ValuesCache = Map<String, Rc<Any>>;
 
+/// A convenience trait to allow the storage of asset values in between tasks or 
+/// graph executions.
 pub trait Cache {
     /// Retrieves a value from the solver. It is required to know the
     /// name and type of the asset. Cast error will return SolveError::AssetWrongType
