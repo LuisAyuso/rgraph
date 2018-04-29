@@ -1,6 +1,6 @@
 extern crate rgraph;
 
-use rgraph::printer;
+//use rgraph::printer;
 use rgraph::*;
 
 fn main() {

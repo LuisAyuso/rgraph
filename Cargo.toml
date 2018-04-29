@@ -2,7 +2,7 @@
 name = "rgraph"
 version = "0.2.1"
 authors = ["Luis Ayuso <luis.f.ayuso@gmail.com>"]
-license = "lgpl v3"
+license = "LGPL-3.0-or-later"
 readme = "README.md"
 repository = "https://github.com/luisAyuso/rgraph.git"
 homepage = "https://github.com/luisAyuso/rgraph.git"
