@@ -1,15 +1,16 @@
 [package]
 name = "rgraph"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Luis Ayuso <luis.f.ayuso@gmail.com>"]
 license = "LGPL-3.0"
 readme = "README.md"
 repository = "https://github.com/luisAyuso/rgraph.git"
 homepage = "https://github.com/luisAyuso/rgraph.git"
 description = "A task graph library."
+edition = "2018"
 
 [profile.release]
 debug = true
 
 [dependencies]
-dot = "0.1.2"
+dot = "0.1.4"
